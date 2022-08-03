@@ -5,7 +5,10 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/overthink/go-web-example/taskstore"
 )
@@ -66,14 +69,29 @@ func (s *server) handleCreateTask(w http.ResponseWriter, req *http.Request) {
 	jsonResponse(w, response{id})
 }
 
+func (s *server) handleGetTask(w http.ResponseWriter, req *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(req, "id"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	task, err := s.taskStore.GetTask(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	jsonResponse(w, task)
+}
+
 func main() {
 	s := NewServer()
-	mux := http.NewServeMux()
-	mux.HandleFunc("/ping", handlePing)
-	mux.HandleFunc("/task/", s.handleCreateTask)
+	router := chi.NewRouter()
+	router.Get("/ping", handlePing)
+	router.Post("/tasks", s.handleCreateTask)
+	router.Get("/tasks/{id}", s.handleGetTask)
 	serverPort, ok := os.LookupEnv("SERVERPORT")
 	if !ok {
 		serverPort = "60000"
 	}
-	http.ListenAndServe("localhost:"+serverPort, mux)
+	http.ListenAndServe("localhost:"+serverPort, router)
 }
