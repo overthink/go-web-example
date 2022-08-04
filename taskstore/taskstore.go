@@ -90,7 +90,7 @@ func (ts *TaskStore) GetAllTasks() []Task {
 func (ts *TaskStore) GetTasksByTag(tag string) []Task {
 	ts.Lock()
 	defer ts.Unlock()
-	var result []Task
+	result := make([]Task, 0)
 taskloop:
 	for _, task := range ts.tasks {
 		for _, taskTag := range task.Tags {
@@ -107,7 +107,7 @@ taskloop:
 func (ts *TaskStore) GetTasksByDueDate(year int, month time.Month, day int) []Task {
 	ts.Lock()
 	defer ts.Unlock()
-	var result []Task
+	result := make([]Task, 0)
 	for _, task := range ts.tasks {
 		y, m, d := task.Due.Date()
 		if y == year && m == month && d == day {
