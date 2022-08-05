@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"log"
 	"mime"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"time"
 
@@ -28,15 +32,15 @@ func handlePing(w http.ResponseWriter, req *http.Request) {
 }
 
 // All the components/deps required by the app live in this struct.
-type server struct {
+type app struct {
 	taskStore *taskstore.TaskStore
 }
 
-func NewServer() *server {
-	return &server{taskStore: taskstore.New()}
+func NewApp() *app {
+	return &app{taskStore: taskstore.New()}
 }
 
-func (s *server) handleCreateTask(w http.ResponseWriter, req *http.Request) {
+func (a *app) handleCreateTask(w http.ResponseWriter, req *http.Request) {
 	type postData struct {
 		Text string    `json:"text"`
 		Tags []string  `json:"tags"`
@@ -65,17 +69,17 @@ func (s *server) handleCreateTask(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	id := s.taskStore.CreateTask(pd.Text, pd.Tags, pd.Due)
+	id := a.taskStore.CreateTask(pd.Text, pd.Tags, pd.Due)
 	jsonResponse(w, response{id})
 }
 
-func (s *server) handleGetTask(w http.ResponseWriter, req *http.Request) {
+func (a *app) handleGetTask(w http.ResponseWriter, req *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(req, "id"))
 	if err != nil {
 		http.Error(w, "could not parse id", http.StatusBadRequest)
 		return
 	}
-	task, err := s.taskStore.GetTask(id)
+	task, err := a.taskStore.GetTask(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -83,41 +87,41 @@ func (s *server) handleGetTask(w http.ResponseWriter, req *http.Request) {
 	jsonResponse(w, task)
 }
 
-func (s *server) handleGetTasksByTag(w http.ResponseWriter, req *http.Request) {
+func (a *app) handleGetTasksByTag(w http.ResponseWriter, req *http.Request) {
 	tag := chi.URLParam(req, "tag")
 	if len(tag) == 0 {
 		http.Error(w, "could not parse tag", http.StatusBadRequest)
 		return
 	}
-	jsonResponse(w, s.taskStore.GetTasksByTag(tag))
+	jsonResponse(w, a.taskStore.GetTasksByTag(tag))
 }
 
-func (s *server) handleGetTasksByDueDate(w http.ResponseWriter, req *http.Request) {
+func (a *app) handleGetTasksByDueDate(w http.ResponseWriter, req *http.Request) {
 	year, _ := strconv.Atoi(chi.URLParam(req, "yyyy"))
 	month, _ := strconv.Atoi(chi.URLParam(req, "mm"))
 	day, _ := strconv.Atoi(chi.URLParam(req, "dd"))
-	jsonResponse(w, s.taskStore.GetTasksByDueDate(year, time.Month(month), day))
+	jsonResponse(w, a.taskStore.GetTasksByDueDate(year, time.Month(month), day))
 }
 
-func (s *server) handleGetAllTasks(w http.ResponseWriter, req *http.Request) {
-	jsonResponse(w, s.taskStore.GetAllTasks())
+func (a *app) handleGetAllTasks(w http.ResponseWriter, req *http.Request) {
+	jsonResponse(w, a.taskStore.GetAllTasks())
 }
 
-func (s *server) handleDeleteAllTasks(w http.ResponseWriter, req *http.Request) {
-	err := s.taskStore.DeleteAllTasks()
+func (a *app) handleDeleteAllTasks(w http.ResponseWriter, req *http.Request) {
+	err := a.taskStore.DeleteAllTasks()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
 
-func (s *server) handleDeleteTask(w http.ResponseWriter, req *http.Request) {
+func (a *app) handleDeleteTask(w http.ResponseWriter, req *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(req, "id"))
 	if err != nil {
 		http.Error(w, "could not parse id", http.StatusBadRequest)
 		return
 	}
-	err = s.taskStore.DeleteTask(id)
+	err = a.taskStore.DeleteTask(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -125,19 +129,46 @@ func (s *server) handleDeleteTask(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	s := NewServer()
+	app := NewApp()
 	router := chi.NewRouter()
 	router.Get("/ping", handlePing)
-	router.Post("/tasks", s.handleCreateTask)
-	router.Delete("/tasks", s.handleDeleteAllTasks)
-	router.Get("/tasks", s.handleGetAllTasks)
-	router.Get("/tasks/{id}", s.handleGetTask)
-	router.Delete("/tasks/{id}", s.handleDeleteTask)
-	router.Get("/tasks/by-tag/{tag}", s.handleGetTasksByTag)
-	router.Get(`/tasks/by-due-date/{yyyy:\d{4}}-{mm:\d\d}-{dd:\d\d}`, s.handleGetTasksByDueDate)
+	router.Post("/tasks", app.handleCreateTask)
+	router.Delete("/tasks", app.handleDeleteAllTasks)
+	router.Get("/tasks", app.handleGetAllTasks)
+	router.Get("/tasks/{id}", app.handleGetTask)
+	router.Delete("/tasks/{id}", app.handleDeleteTask)
+	router.Get("/tasks/by-tag/{tag}", app.handleGetTasksByTag)
+	router.Get(`/tasks/by-due-date/{yyyy:\d{4}}-{mm:\d\d}-{dd:\d\d}`, app.handleGetTasksByDueDate)
+
 	serverPort, ok := os.LookupEnv("SERVERPORT")
 	if !ok {
 		serverPort = "60000"
 	}
-	http.ListenAndServe("localhost:"+serverPort, router)
+	server := &http.Server{
+		Addr:         "localhost:" + serverPort,
+		Handler:      router,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+		ConnState: func(conn net.Conn, state http.ConnState) {
+			log.Printf("ConnState: %v, %v", conn.RemoteAddr(), state)
+		},
+	}
+
+	idleConnsClosed := make(chan struct{})
+	go func() {
+		sigint := make(chan os.Signal, 1)
+		signal.Notify(sigint, os.Interrupt)
+		<-sigint
+		log.Printf("Caught sigint, shutting down")
+		if err := server.Shutdown(context.Background()); err != nil {
+			log.Printf("Error when shutting down: %v", err)
+		}
+		close(idleConnsClosed)
+	}()
+	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		log.Printf("HTTP server ListenAndServe: %v", err)
+	}
+	<-idleConnsClosed
+	log.Println("Exiting")
+
 }
