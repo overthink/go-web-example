@@ -1,6 +1,8 @@
 # go-web-example
 
-Refresher on setting up REST APIs in go.
+Just a little REST API to brush up on some golang.
 
-Starting with https://eli.thegreenplace.net/2021/rest-servers-in-go-part-1-standard-library/
+## References
+
+* based initially on https://eli.thegreenplace.net/2021/rest-servers-in-go-part-1-standard-library/
 

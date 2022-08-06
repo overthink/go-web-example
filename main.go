@@ -65,7 +65,7 @@ func (a *app) handleCreateTask(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	id := a.taskStore.CreateTask(pd.Text, pd.Tags, pd.Due)
+	id := a.taskStore.CreateTask(req.Context(), pd.Text, pd.Tags, pd.Due)
 	jsonResponse(w, response{id})
 }
 
@@ -75,7 +75,7 @@ func (a *app) handleGetTask(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "could not parse id", http.StatusBadRequest)
 		return
 	}
-	task, err := a.taskStore.GetTask(id)
+	task, err := a.taskStore.GetTask(req.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -89,22 +89,22 @@ func (a *app) handleGetTasksByTag(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "could not parse tag", http.StatusBadRequest)
 		return
 	}
-	jsonResponse(w, a.taskStore.GetTasksByTag(tag))
+	jsonResponse(w, a.taskStore.GetTasksByTag(req.Context(), tag))
 }
 
 func (a *app) handleGetTasksByDueDate(w http.ResponseWriter, req *http.Request) {
 	year, _ := strconv.Atoi(chi.URLParam(req, "yyyy"))
 	month, _ := strconv.Atoi(chi.URLParam(req, "mm"))
 	day, _ := strconv.Atoi(chi.URLParam(req, "dd"))
-	jsonResponse(w, a.taskStore.GetTasksByDueDate(year, time.Month(month), day))
+	jsonResponse(w, a.taskStore.GetTasksByDueDate(req.Context(), year, time.Month(month), day))
 }
 
 func (a *app) handleGetAllTasks(w http.ResponseWriter, req *http.Request) {
-	jsonResponse(w, a.taskStore.GetAllTasks())
+	jsonResponse(w, a.taskStore.GetAllTasks(req.Context()))
 }
 
 func (a *app) handleDeleteAllTasks(w http.ResponseWriter, req *http.Request) {
-	err := a.taskStore.DeleteAllTasks()
+	err := a.taskStore.DeleteAllTasks(req.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -117,7 +117,7 @@ func (a *app) handleDeleteTask(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "could not parse id", http.StatusBadRequest)
 		return
 	}
-	err = a.taskStore.DeleteTask(id)
+	err = a.taskStore.DeleteTask(req.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return

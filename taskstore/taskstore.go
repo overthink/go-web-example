@@ -1,6 +1,7 @@
 package taskstore
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -30,7 +31,7 @@ func New() *TaskStore {
 
 // CreateTask creates a new task and adds it to the TaskStore. Returns id of
 // newly created task.
-func (ts *TaskStore) CreateTask(text string, tags []string, due time.Time) int {
+func (ts *TaskStore) CreateTask(_ context.Context, text string, tags []string, due time.Time) int {
 	ts.Lock()
 	defer ts.Unlock()
 	task := Task{
@@ -46,7 +47,7 @@ func (ts *TaskStore) CreateTask(text string, tags []string, due time.Time) int {
 }
 
 // GetTask returns the task with the given id, or an error if not found.
-func (ts *TaskStore) GetTask(id int) (Task, error) {
+func (ts *TaskStore) GetTask(_ context.Context, id int) (Task, error) {
 	ts.Lock()
 	defer ts.Unlock()
 	t, ok := ts.tasks[id]
@@ -58,7 +59,7 @@ func (ts *TaskStore) GetTask(id int) (Task, error) {
 
 // DeleteTask removes the task with the given id from the store. Returns an
 // error if no such task exists.
-func (ts *TaskStore) DeleteTask(id int) error {
+func (ts *TaskStore) DeleteTask(_ context.Context, id int) error {
 	ts.Lock()
 	defer ts.Unlock()
 	if _, ok := ts.tasks[id]; !ok {
@@ -69,7 +70,7 @@ func (ts *TaskStore) DeleteTask(id int) error {
 }
 
 // DeleteAllTasks deletes all the tasks in the store. Returns any error.
-func (ts *TaskStore) DeleteAllTasks() error {
+func (ts *TaskStore) DeleteAllTasks(_ context.Context) error {
 	ts.Lock()
 	defer ts.Unlock()
 	ts.tasks = make(map[int]Task)
@@ -77,7 +78,7 @@ func (ts *TaskStore) DeleteAllTasks() error {
 }
 
 // GetAllTasks returns all the tasks in the store.
-func (ts *TaskStore) GetAllTasks() []Task {
+func (ts *TaskStore) GetAllTasks(_ context.Context) []Task {
 	ts.Lock()
 	defer ts.Unlock()
 	result := make([]Task, 0, len(ts.tasks))
@@ -87,7 +88,7 @@ func (ts *TaskStore) GetAllTasks() []Task {
 	return result
 }
 
-func (ts *TaskStore) GetTasksByTag(tag string) []Task {
+func (ts *TaskStore) GetTasksByTag(_ context.Context, tag string) []Task {
 	ts.Lock()
 	defer ts.Unlock()
 	result := make([]Task, 0)
@@ -104,7 +105,7 @@ taskloop:
 }
 
 // GetTasksByDueDate returns all the tasks with the given due date.
-func (ts *TaskStore) GetTasksByDueDate(year int, month time.Month, day int) []Task {
+func (ts *TaskStore) GetTasksByDueDate(_ context.Context, year int, month time.Month, day int) []Task {
 	ts.Lock()
 	defer ts.Unlock()
 	result := make([]Task, 0)
