@@ -31,7 +31,7 @@ func New() *TaskStore {
 
 // CreateTask creates a new task and adds it to the TaskStore. Returns id of
 // newly created task.
-func (ts *TaskStore) CreateTask(_ context.Context, text string, tags []string, due time.Time) int {
+func (ts *TaskStore) CreateTask(_ context.Context, text string, tags []string, due time.Time) (int, error) {
 	ts.Lock()
 	defer ts.Unlock()
 	task := Task{
@@ -43,7 +43,7 @@ func (ts *TaskStore) CreateTask(_ context.Context, text string, tags []string, d
 	copy(task.Tags, tags)
 	ts.tasks[task.Id] = task
 	ts.nextId++
-	return task.Id
+	return task.Id, nil
 }
 
 // GetTask returns the task with the given id, or an error if not found.
@@ -78,17 +78,17 @@ func (ts *TaskStore) DeleteAllTasks(_ context.Context) error {
 }
 
 // GetAllTasks returns all the tasks in the store.
-func (ts *TaskStore) GetAllTasks(_ context.Context) []Task {
+func (ts *TaskStore) GetAllTasks(_ context.Context) ([]Task, error) {
 	ts.Lock()
 	defer ts.Unlock()
 	result := make([]Task, 0, len(ts.tasks))
 	for _, task := range ts.tasks {
 		result = append(result, task)
 	}
-	return result
+	return result, nil
 }
 
-func (ts *TaskStore) GetTasksByTag(_ context.Context, tag string) []Task {
+func (ts *TaskStore) GetTasksByTag(_ context.Context, tag string) ([]Task, error) {
 	ts.Lock()
 	defer ts.Unlock()
 	result := make([]Task, 0)
@@ -101,11 +101,11 @@ taskloop:
 			}
 		}
 	}
-	return result
+	return result, nil
 }
 
 // GetTasksByDueDate returns all the tasks with the given due date.
-func (ts *TaskStore) GetTasksByDueDate(_ context.Context, year int, month time.Month, day int) []Task {
+func (ts *TaskStore) GetTasksByDueDate(_ context.Context, year int, month time.Month, day int) ([]Task, error) {
 	ts.Lock()
 	defer ts.Unlock()
 	result := make([]Task, 0)
@@ -115,5 +115,5 @@ func (ts *TaskStore) GetTasksByDueDate(_ context.Context, year int, month time.M
 			result = append(result, task)
 		}
 	}
-	return result
+	return result, nil
 }

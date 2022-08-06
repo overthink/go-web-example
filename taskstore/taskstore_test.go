@@ -14,7 +14,8 @@ func TestCreateAndGetTask(t *testing.T) {
 	store := New()
 	date := time.Now()
 	ctx := context.Background()
-	id := store.CreateTask(ctx, "Hi", []string{"a", "b", "c"}, date)
+	id, err := store.CreateTask(ctx, "Hi", []string{"a", "b", "c"}, date)
+	assert.NoError(t, err)
 	assert.Equal(t, 0, id)
 	assert.Equal(t, 1, store.nextId)
 
@@ -31,8 +32,9 @@ func TestCreateAndGetTask(t *testing.T) {
 func TestDeleteTask(t *testing.T) {
 	store := New()
 	ctx := context.Background()
-	id := store.CreateTask(ctx, "Hi", nil, time.Now())
-	err := store.DeleteTask(ctx, id)
+	id, err := store.CreateTask(ctx, "Hi", nil, time.Now())
+	assert.NoError(t, err)
+	err = store.DeleteTask(ctx, id)
 	assert.NoError(t, err)
 	_, err = store.GetTask(ctx, id)
 	assert.Error(t, err)
@@ -53,7 +55,9 @@ func TestGetAllTasks(t *testing.T) {
 	ctx := context.Background()
 	store.CreateTask(ctx, "Hi", nil, time.Now())
 	store.CreateTask(ctx, "Hi2", nil, time.Now())
-	assert.Len(t, store.GetAllTasks(ctx), 2)
+	tasks, err := store.GetAllTasks(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, tasks, 2)
 }
 
 func TestGetTasksByTag(t *testing.T) {
@@ -63,7 +67,8 @@ func TestGetTasksByTag(t *testing.T) {
 	store.CreateTask(ctx, "Task2", []string{"a", "b"}, time.Now())
 	store.CreateTask(ctx, "Task3", []string{"b", "c", "d"}, time.Now())
 	store.CreateTask(ctx, "Task4", []string{"a", "c"}, time.Now())
-	tasks := store.GetTasksByTag(ctx, "a")
+	tasks, err := store.GetTasksByTag(ctx, "a")
+	assert.NoError(t, err)
 	sort.Slice(tasks, func(i, j int) bool {
 		return tasks[i].Text < tasks[j].Text
 	})
@@ -90,7 +95,8 @@ func TestGetTasksByDueDate(t *testing.T) {
 	store.CreateTask(ctx, "Task5", nil, mustParseDate("1980-Mar-05"))
 
 	y, m, d := mustParseDate("1980-Mar-05").Date()
-	tasks := store.GetTasksByDueDate(ctx, y, m, d)
+	tasks, err := store.GetTasksByDueDate(ctx, y, m, d)
+	assert.NoError(t, err)
 	assert.Len(t, tasks, 1)
 	assert.Equal(t, "Task5", tasks[0].Text)
 
@@ -106,7 +112,8 @@ func TestGetTasksByDueDate(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.date, func(t *testing.T) {
 			y, m, d := mustParseDate(test.date).Date()
-			tasks := store.GetTasksByDueDate(ctx, y, m, d)
+			tasks, err := store.GetTasksByDueDate(ctx, y, m, d)
+			assert.NoError(t, err)
 			assert.Len(t, tasks, test.expectedNum)
 		})
 	}
