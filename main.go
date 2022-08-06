@@ -36,10 +36,6 @@ type app struct {
 	taskStore *taskstore.TaskStore
 }
 
-func NewApp() *app {
-	return &app{taskStore: taskstore.New()}
-}
-
 func (a *app) handleCreateTask(w http.ResponseWriter, req *http.Request) {
 	type postData struct {
 		Text string    `json:"text"`
@@ -129,7 +125,7 @@ func (a *app) handleDeleteTask(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	app := NewApp()
+	app := &app{taskstore.New()}
 	router := chi.NewRouter()
 	router.Get("/ping", handlePing)
 	router.Post("/tasks", app.handleCreateTask)
