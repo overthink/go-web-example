@@ -59,14 +59,19 @@ func (suite *TaskStoreTestSuite) TestDeleteTask() {
 }
 
 func (suite *TaskStoreTestSuite) TestDeleteAllTasks() {
-	store := suite.store
-	t := suite.T()
 	ctx := context.Background()
-	store.CreateTask(ctx, "Hi", nil, time.Now())
-	store.CreateTask(ctx, "Hi2", nil, time.Now())
-	// TODO: assert.Len(t, store.tasks, 2)
-	assert.NoError(t, store.DeleteAllTasks(ctx))
-	// TODO: assert.Empty(t, store.tasks)
+	store := suite.store
+	_, err := store.CreateTask(ctx, "Hi", nil, time.Now())
+	suite.NoError(err)
+	_, err = store.CreateTask(ctx, "Hi2", nil, time.Now())
+	suite.NoError(err)
+	tasks, err := store.GetAllTasks(ctx)
+	suite.NoError(err)
+	suite.Len(tasks, 2)
+	suite.NoError(store.DeleteAllTasks(ctx))
+	tasks, err = store.GetAllTasks(ctx)
+	suite.NoError(err)
+	suite.Empty(tasks)
 }
 
 func (suite *TaskStoreTestSuite) TestGetAllTasks() {
@@ -142,7 +147,13 @@ func (suite *TaskStoreTestSuite) TestGetTasksByDueDate() {
 }
 
 func TestInMemoryTaskStore(t *testing.T) {
-	testSuite := &TaskStoreTestSuite{store: NewInMemTaskStore()}
+	cleanDb := func(suite *TaskStoreTestSuite, suiteName, testName string) {
+		suite.store = NewInMemTaskStore()
+	}
+	testSuite := &TaskStoreTestSuite{
+		store:      NewInMemTaskStore(),
+		beforeTest: cleanDb,
+	}
 	suite.Run(t, testSuite)
 }
 

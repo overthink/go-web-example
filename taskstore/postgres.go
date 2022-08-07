@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+	_ "github.com/lib/pq"
 )
 
 // PgTaskStore implements task storage and retreival in a Postgres DB.
@@ -37,36 +38,83 @@ func (ts *PgTaskStore) CreateTask(ctx context.Context, text string, tags []strin
 	return result, nil
 }
 
-func (ts *PgTaskStore) GetTask(ctx context.Context, id int) (Task, error) {
-	query := "SELECT id, description, tags, due FROM task WHERE id = $1"
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func readTask(row rowScanner) (Task, error) {
 	task := Task{}
 	var tags pq.StringArray
-	err := ts.Pool.QueryRowContext(ctx, query, id).
-		Scan(&task.Id, &task.Text, &tags, &task.Due)
-	if err != nil {
-		return Task{}, fmt.Errorf("failed to get task id=%d: %v", id, err)
+	if err := row.Scan(&task.Id, &task.Text, &tags, &task.Due); err != nil {
+		return Task{}, fmt.Errorf("could not load Task from row: %v", err)
 	}
 	task.Tags = tags
-	task.Due = task.Due.UTC() // pg's repr of UTC time zone is slightly different than go's, so convert it
+	task.Due = task.Due.UTC()
 	return task, nil
 }
 
-func (ts *PgTaskStore) DeleteTask(_ context.Context, id int) error {
+func readTasks(rows *sql.Rows) ([]Task, error) {
+	result := make([]Task, 0)
+	for rows.Next() {
+		task, err := readTask(rows)
+		if err != nil {
+			return result, err
+		}
+		result = append(result, task)
+	}
+	return result, nil
+}
+
+func (ts *PgTaskStore) GetTask(ctx context.Context, id int) (Task, error) {
+	query := "SELECT id, description, tags, due FROM task WHERE id = $1"
+	task, err := readTask(ts.Pool.QueryRowContext(ctx, query, id))
+	if err != nil {
+		return Task{}, err
+	}
+	return task, nil
+}
+
+func (ts *PgTaskStore) DeleteTask(ctx context.Context, id int) error {
+	query := "DELETE FROM task WHERE id = $1"
+	_, err := ts.Pool.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete task with id=%d: %v", id, err)
+	}
 	return nil
 }
 
-func (ts *PgTaskStore) DeleteAllTasks(_ context.Context) error {
+func (ts *PgTaskStore) DeleteAllTasks(ctx context.Context) error {
+	query := "DELETE FROM task"
+	_, err := ts.Pool.ExecContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to delete all tasks: %v", err)
+	}
 	return nil
 }
 
-func (ts *PgTaskStore) GetAllTasks(_ context.Context) ([]Task, error) {
-	return nil, nil
+func (ts *PgTaskStore) GetAllTasks(ctx context.Context) ([]Task, error) {
+	query := "SELECT id, description, tags, due FROM task"
+	rows, err := ts.Pool.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query all tasks: %v", err)
+	}
+	return readTasks(rows)
 }
 
-func (ts *PgTaskStore) GetTasksByTag(_ context.Context, tag string) ([]Task, error) {
-	return nil, nil
+func (ts *PgTaskStore) GetTasksByTag(ctx context.Context, tag string) ([]Task, error) {
+	query := "SELECT id, description, tags, due FROM task WHERE $1 = ANY(tags)"
+	rows, err := ts.Pool.QueryContext(ctx, query, tag)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tasks by tag: %v", err)
+	}
+	return readTasks(rows)
 }
 
-func (ts *PgTaskStore) GetTasksByDueDate(_ context.Context, year int, month time.Month, day int) ([]Task, error) {
-	return nil, nil
+func (ts *PgTaskStore) GetTasksByDueDate(ctx context.Context, year int, month time.Month, day int) ([]Task, error) {
+	query := "SELECT id, description, tags, due FROM task WHERE date_trunc('day', due) = $1"
+	rows, err := ts.Pool.QueryContext(ctx, query, fmt.Sprintf("%d-%d-%d", year, month, day))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tasks by due date: %v", err)
+	}
+	return readTasks(rows)
 }
