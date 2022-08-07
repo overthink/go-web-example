@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type TaskStore interface {
+	CreateTask(_ context.Context, text string, tags []string, due time.Time) (int, error)
+	GetTask(_ context.Context, id int) (Task, error)
+	DeleteTask(_ context.Context, id int) error
+	DeleteAllTasks(_ context.Context) error
+	GetAllTasks(_ context.Context) ([]Task, error)
+	GetTasksByTag(_ context.Context, tag string) ([]Task, error)
+	GetTasksByDueDate(_ context.Context, year int, month time.Month, day int) ([]Task, error)
+}
+
 type Task struct {
 	Id   int       `json:"id"`
 	Text string    `json:"text"`
@@ -15,15 +25,15 @@ type Task struct {
 }
 
 // TaskStore is an in-memory db of tasks. Its methods are threadsafe.
-type TaskStore struct {
+type InMemTaskStore struct {
 	sync.Mutex
 	tasks  map[int]Task
 	nextId int
 }
 
 // New is the preferred way to construct a TaskStore.
-func New() *TaskStore {
-	ts := &TaskStore{}
+func NewInMemTaskStore() *InMemTaskStore {
+	ts := &InMemTaskStore{}
 	ts.tasks = make(map[int]Task)
 	ts.nextId = 0
 	return ts
@@ -31,7 +41,7 @@ func New() *TaskStore {
 
 // CreateTask creates a new task and adds it to the TaskStore. Returns id of
 // newly created task.
-func (ts *TaskStore) CreateTask(_ context.Context, text string, tags []string, due time.Time) (int, error) {
+func (ts *InMemTaskStore) CreateTask(_ context.Context, text string, tags []string, due time.Time) (int, error) {
 	ts.Lock()
 	defer ts.Unlock()
 	task := Task{
@@ -47,7 +57,7 @@ func (ts *TaskStore) CreateTask(_ context.Context, text string, tags []string, d
 }
 
 // GetTask returns the task with the given id, or an error if not found.
-func (ts *TaskStore) GetTask(_ context.Context, id int) (Task, error) {
+func (ts *InMemTaskStore) GetTask(_ context.Context, id int) (Task, error) {
 	ts.Lock()
 	defer ts.Unlock()
 	t, ok := ts.tasks[id]
@@ -59,7 +69,7 @@ func (ts *TaskStore) GetTask(_ context.Context, id int) (Task, error) {
 
 // DeleteTask removes the task with the given id from the store. Returns an
 // error if no such task exists.
-func (ts *TaskStore) DeleteTask(_ context.Context, id int) error {
+func (ts *InMemTaskStore) DeleteTask(_ context.Context, id int) error {
 	ts.Lock()
 	defer ts.Unlock()
 	if _, ok := ts.tasks[id]; !ok {
@@ -70,7 +80,7 @@ func (ts *TaskStore) DeleteTask(_ context.Context, id int) error {
 }
 
 // DeleteAllTasks deletes all the tasks in the store. Returns any error.
-func (ts *TaskStore) DeleteAllTasks(_ context.Context) error {
+func (ts *InMemTaskStore) DeleteAllTasks(_ context.Context) error {
 	ts.Lock()
 	defer ts.Unlock()
 	ts.tasks = make(map[int]Task)
@@ -78,7 +88,7 @@ func (ts *TaskStore) DeleteAllTasks(_ context.Context) error {
 }
 
 // GetAllTasks returns all the tasks in the store.
-func (ts *TaskStore) GetAllTasks(_ context.Context) ([]Task, error) {
+func (ts *InMemTaskStore) GetAllTasks(_ context.Context) ([]Task, error) {
 	ts.Lock()
 	defer ts.Unlock()
 	result := make([]Task, 0, len(ts.tasks))
@@ -88,7 +98,7 @@ func (ts *TaskStore) GetAllTasks(_ context.Context) ([]Task, error) {
 	return result, nil
 }
 
-func (ts *TaskStore) GetTasksByTag(_ context.Context, tag string) ([]Task, error) {
+func (ts *InMemTaskStore) GetTasksByTag(_ context.Context, tag string) ([]Task, error) {
 	ts.Lock()
 	defer ts.Unlock()
 	result := make([]Task, 0)
@@ -105,7 +115,7 @@ taskloop:
 }
 
 // GetTasksByDueDate returns all the tasks with the given due date.
-func (ts *TaskStore) GetTasksByDueDate(_ context.Context, year int, month time.Month, day int) ([]Task, error) {
+func (ts *InMemTaskStore) GetTasksByDueDate(_ context.Context, year int, month time.Month, day int) ([]Task, error) {
 	ts.Lock()
 	defer ts.Unlock()
 	result := make([]Task, 0)

@@ -8,16 +8,23 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestCreateAndGetTask(t *testing.T) {
-	store := New()
+type TaskStoreTestSuite struct {
+	suite.Suite
+	store TaskStore
+}
+
+func (suite *TaskStoreTestSuite) TestCreateAndGetTask() {
+	store := suite.store
+	t := suite.T()
 	date := time.Now()
 	ctx := context.Background()
 	id, err := store.CreateTask(ctx, "Hi", []string{"a", "b", "c"}, date)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, id)
-	assert.Equal(t, 1, store.nextId)
+	// assert.Equal(t, 1, store.nextId)
 
 	task, err := store.GetTask(ctx, 0)
 	assert.NoError(t, err)
@@ -29,8 +36,9 @@ func TestCreateAndGetTask(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestDeleteTask(t *testing.T) {
-	store := New()
+func (suite *TaskStoreTestSuite) TestDeleteTask() {
+	store := suite.store
+	t := suite.T()
 	ctx := context.Background()
 	id, err := store.CreateTask(ctx, "Hi", nil, time.Now())
 	assert.NoError(t, err)
@@ -40,18 +48,20 @@ func TestDeleteTask(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestDeleteAllTasks(t *testing.T) {
-	store := New()
+func (suite *TaskStoreTestSuite) TestDeleteAllTasks() {
+	store := suite.store
+	t := suite.T()
 	ctx := context.Background()
 	store.CreateTask(ctx, "Hi", nil, time.Now())
 	store.CreateTask(ctx, "Hi2", nil, time.Now())
-	assert.Len(t, store.tasks, 2)
-	store.DeleteAllTasks(ctx)
-	assert.Empty(t, store.tasks)
+	// TODO: assert.Len(t, store.tasks, 2)
+	assert.NoError(t, store.DeleteAllTasks(ctx))
+	// TODO: assert.Empty(t, store.tasks)
 }
 
-func TestGetAllTasks(t *testing.T) {
-	store := New()
+func (suite *TaskStoreTestSuite) TestGetAllTasks() {
+	store := suite.store
+	t := suite.T()
 	ctx := context.Background()
 	store.CreateTask(ctx, "Hi", nil, time.Now())
 	store.CreateTask(ctx, "Hi2", nil, time.Now())
@@ -60,8 +70,9 @@ func TestGetAllTasks(t *testing.T) {
 	assert.Len(t, tasks, 2)
 }
 
-func TestGetTasksByTag(t *testing.T) {
-	store := New()
+func (suite *TaskStoreTestSuite) TestGetTasksByTag() {
+	store := suite.store
+	t := suite.T()
 	ctx := context.Background()
 	store.CreateTask(ctx, "Task1", nil, time.Now())
 	store.CreateTask(ctx, "Task2", []string{"a", "b"}, time.Now())
@@ -85,8 +96,9 @@ func mustParseDate(dateStr string) time.Time {
 	return time
 }
 
-func TestGetTasksByDueDate(t *testing.T) {
-	store := New()
+func (suite *TaskStoreTestSuite) TestGetTasksByDueDate() {
+	store := suite.store
+	t := suite.T()
 	ctx := context.Background()
 	store.CreateTask(ctx, "Task1", nil, mustParseDate("1995-Feb-02"))
 	store.CreateTask(ctx, "Task2", nil, mustParseDate("2011-Jan-14"))
@@ -117,5 +129,9 @@ func TestGetTasksByDueDate(t *testing.T) {
 			assert.Len(t, tasks, test.expectedNum)
 		})
 	}
+}
 
+func TestInMemoryTaskStore(t *testing.T) {
+	testSuite := &TaskStoreTestSuite{store: NewInMemTaskStore()}
+	suite.Run(t, testSuite)
 }

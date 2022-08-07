@@ -33,7 +33,7 @@ func handlePing(w http.ResponseWriter, req *http.Request) {
 
 // All the components/deps required by the app live in this struct.
 type app struct {
-	taskStore *taskstore.TaskStore
+	taskStore taskstore.TaskStore
 }
 
 func (a *app) handleCreateTask(w http.ResponseWriter, req *http.Request) {
@@ -144,7 +144,7 @@ func (a *app) handleDeleteTask(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	app := &app{taskstore.New()}
+	app := &app{taskstore.NewInMemTaskStore()}
 	router := chi.NewRouter()
 	router.Get("/ping", handlePing)
 	router.Post("/tasks", app.handleCreateTask)
