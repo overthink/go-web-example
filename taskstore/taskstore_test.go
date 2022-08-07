@@ -3,7 +3,6 @@ package taskstore
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"sort"
 	"testing"
@@ -34,14 +33,14 @@ func (suite *TaskStoreTestSuite) TestCreateAndGetTask() {
 	ctx := context.Background()
 	id, err := store.CreateTask(ctx, "Hi", []string{"a", "b", "c"}, date)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, id)
+	assert.Equal(t, 1, id)
 	// assert.Equal(t, 1, store.nextId)
 
-	task, err := store.GetTask(ctx, 0)
+	task, err := store.GetTask(ctx, 1)
 	assert.NoError(t, err)
-	assert.Equal(t, task.Id, 0)
-	assert.Equal(t, task.Tags, []string{"a", "b", "c"})
-	assert.Equal(t, task.Due, date)
+	assert.Equal(t, 1, task.Id)
+	assert.Equal(t, []string{"a", "b", "c"}, task.Tags)
+	assert.Equal(t, date.UTC().Round(time.Microsecond), task.Due)
 
 	_, err = store.GetTask(ctx, 999)
 	assert.Error(t, err)
@@ -151,13 +150,20 @@ func TestPgTaskStore(t *testing.T) {
 	connStr := "postgresql://tasks_dev:@localhost/tasks_dev?sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
 	require.NoError(t, err)
+	ctx := context.Background()
+	require.NoError(t, db.PingContext(ctx))
 
-	beforeFn := func(suite *TaskStoreTestSuite, suiteName, testName string) {
-		fmt.Printf("before! %v, %v\n", suiteName, testName)
+	cleanDb := func(suite *TaskStoreTestSuite, suiteName, testName string) {
+		pool := suite.store.(*PgTaskStore).Pool
+		_, err := pool.ExecContext(ctx, "DELETE FROM task")
+		require.NoError(suite.T(), err)
+		_, err = pool.ExecContext(ctx, "ALTER SEQUENCE task_id_seq RESTART WITH 1")
+		require.NoError(suite.T(), err)
 	}
+
 	testSuite := &TaskStoreTestSuite{
-		store:      &PgTaskStore{pool: db},
-		beforeTest: beforeFn,
+		store:      &PgTaskStore{Pool: db},
+		beforeTest: cleanDb,
 	}
 	suite.Run(t, testSuite)
 }

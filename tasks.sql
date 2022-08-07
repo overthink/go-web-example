@@ -5,7 +5,7 @@ CREATE TABLE task (
   description text,
   tags        text[],
   due         timestamptz,
-  created     timestamptz NOT NULL
+  created     timestamptz DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMIT;

@@ -1,6 +1,10 @@
 dev_db = tasks_dev
 dev_db_user = tasks_dev
 
+.PHONY: test
+test:
+	go test ./...
+
 .PHONY: psql
 psql:
 	psql -U $(dev_db_user) $(dev_db)

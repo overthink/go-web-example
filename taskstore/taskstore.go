@@ -35,7 +35,7 @@ type InMemTaskStore struct {
 func NewInMemTaskStore() *InMemTaskStore {
 	ts := &InMemTaskStore{}
 	ts.tasks = make(map[int]Task)
-	ts.nextId = 0
+	ts.nextId = 1
 	return ts
 }
 
@@ -48,7 +48,7 @@ func (ts *InMemTaskStore) CreateTask(_ context.Context, text string, tags []stri
 		Id:   ts.nextId,
 		Text: text,
 		Tags: make([]string, len(tags)),
-		Due:  due,
+		Due:  due.UTC().Round(time.Microsecond), // for parity with SQL dbs
 	}
 	copy(task.Tags, tags)
 	ts.tasks[task.Id] = task
