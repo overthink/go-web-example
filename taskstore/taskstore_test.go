@@ -2,18 +2,29 @@ package taskstore
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"log"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
 type TaskStoreTestSuite struct {
 	suite.Suite
-	store TaskStore
+	store      TaskStore
+	beforeTest func(*TaskStoreTestSuite, string, string)
+}
+
+func (suite *TaskStoreTestSuite) BeforeTest(suiteName, testName string) {
+	if suite.beforeTest == nil {
+		return
+	}
+	suite.beforeTest(suite, suiteName, testName)
 }
 
 func (suite *TaskStoreTestSuite) TestCreateAndGetTask() {
@@ -83,7 +94,7 @@ func (suite *TaskStoreTestSuite) TestGetTasksByTag() {
 	sort.Slice(tasks, func(i, j int) bool {
 		return tasks[i].Text < tasks[j].Text
 	})
-	assert.Len(t, tasks, 2)
+	require.Len(t, tasks, 2)
 	assert.Equal(t, "Task2", tasks[0].Text)
 	assert.Equal(t, "Task4", tasks[1].Text)
 }
@@ -109,7 +120,7 @@ func (suite *TaskStoreTestSuite) TestGetTasksByDueDate() {
 	y, m, d := mustParseDate("1980-Mar-05").Date()
 	tasks, err := store.GetTasksByDueDate(ctx, y, m, d)
 	assert.NoError(t, err)
-	assert.Len(t, tasks, 1)
+	require.Len(t, tasks, 1)
 	assert.Equal(t, "Task5", tasks[0].Text)
 
 	tests := []struct {
@@ -133,5 +144,20 @@ func (suite *TaskStoreTestSuite) TestGetTasksByDueDate() {
 
 func TestInMemoryTaskStore(t *testing.T) {
 	testSuite := &TaskStoreTestSuite{store: NewInMemTaskStore()}
+	suite.Run(t, testSuite)
+}
+
+func TestPgTaskStore(t *testing.T) {
+	connStr := "postgresql://tasks_dev:@localhost/tasks_dev?sslmode=disable"
+	db, err := sql.Open("postgres", connStr)
+	require.NoError(t, err)
+
+	beforeFn := func(suite *TaskStoreTestSuite, suiteName, testName string) {
+		fmt.Printf("before! %v, %v\n", suiteName, testName)
+	}
+	testSuite := &TaskStoreTestSuite{
+		store:      &PgTaskStore{pool: db},
+		beforeTest: beforeFn,
+	}
 	suite.Run(t, testSuite)
 }
