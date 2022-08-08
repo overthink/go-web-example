@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"mime"
 	"net"
@@ -33,6 +34,7 @@ func handlePing(w http.ResponseWriter, req *http.Request) {
 
 // All the components/deps required by the app live in this struct.
 type app struct {
+	config    Config
 	taskStore taskstore.TaskStore
 }
 
@@ -143,27 +145,12 @@ func (a *app) handleDeleteTask(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func main() {
-	app := &app{taskstore.NewInMemTaskStore()}
-	router := chi.NewRouter()
-	router.Get("/ping", handlePing)
-	router.Post("/tasks", app.handleCreateTask)
-	router.Delete("/tasks", app.handleDeleteAllTasks)
-	router.Get("/tasks", app.handleGetAllTasks)
-	router.Get("/tasks/{id}", app.handleGetTask)
-	router.Delete("/tasks/{id}", app.handleDeleteTask)
-	router.Get("/tasks/by-tag/{tag}", app.handleGetTasksByTag)
-	router.Get(`/tasks/by-due-date/{yyyy:\d{4}}-{mm:\d\d}-{dd:\d\d}`, app.handleGetTasksByDueDate)
-
-	serverPort, ok := os.LookupEnv("SERVERPORT")
-	if !ok {
-		serverPort = "60000"
-	}
+func createServer(config HttpServerConfig, router *chi.Mux) (*http.Server, chan struct{}) {
 	server := &http.Server{
-		Addr:         "localhost:" + serverPort,
+		Addr:         fmt.Sprintf("%s:%d", config.ListenAddress, config.Port),
 		Handler:      router,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
+		ReadTimeout:  time.Duration(config.ReadTimeoutSeconds) * time.Second,
+		WriteTimeout: time.Duration(config.WriteTimeoutSeconds) * time.Second,
 		ConnState: func(conn net.Conn, state http.ConnState) {
 			log.Printf("ConnState: %v, %v", conn.RemoteAddr(), state)
 		},
@@ -174,16 +161,41 @@ func main() {
 		sigint := make(chan os.Signal, 1)
 		signal.Notify(sigint, os.Interrupt)
 		<-sigint
-		log.Printf("Caught sigint, shutting down")
+		log.Printf("caught sigint, shutting down")
 		if err := server.Shutdown(context.Background()); err != nil {
-			log.Printf("Error when shutting down: %v", err)
+			log.Printf("error when shutting down: %v", err)
 		}
 		close(idleConnsClosed)
 	}()
+	return server, idleConnsClosed
+}
+
+func main() {
+	config, err := LoadConfig()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+	app := &app{
+		config:    config,
+		taskStore: taskstore.NewInMemTaskStore(),
+	}
+
+	router := chi.NewRouter()
+	router.Get("/ping", handlePing)
+	router.Post("/tasks", app.handleCreateTask)
+	router.Delete("/tasks", app.handleDeleteAllTasks)
+	router.Get("/tasks", app.handleGetAllTasks)
+	router.Get("/tasks/{id}", app.handleGetTask)
+	router.Delete("/tasks/{id}", app.handleDeleteTask)
+	router.Get("/tasks/by-tag/{tag}", app.handleGetTasksByTag)
+	router.Get(`/tasks/by-due-date/{yyyy:\d{4}}-{mm:\d\d}-{dd:\d\d}`, app.handleGetTasksByDueDate)
+
+	server, idleConnsClosed := createServer(config.HttpServer, router)
+	log.Println("server started")
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
 		log.Printf("HTTP server ListenAndServe: %v", err)
 	}
 	<-idleConnsClosed
-	log.Println("Exiting")
+	log.Println("exiting")
 
 }

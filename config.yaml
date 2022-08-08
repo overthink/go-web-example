@@ -1,0 +1,13 @@
+---
+http_server:
+  port: 60000
+  listen_address: localhost
+  read_timeout_s: 5
+  write_timeout_s: 5
+postgres:
+  host: localhost
+  port: 5432
+  dbname: tasks_dev
+  username: tasks_dev
+  password: ""
+  ssl_enabled: false
