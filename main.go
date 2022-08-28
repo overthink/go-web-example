@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/overthink/go-web-example/config"
 	"github.com/overthink/go-web-example/taskstore"
 )
 
@@ -34,7 +35,7 @@ func handlePing(w http.ResponseWriter, req *http.Request) {
 
 // All the components/deps required by the app live in this struct.
 type app struct {
-	config    Config
+	config    config.App
 	taskStore taskstore.TaskStore
 }
 
@@ -145,12 +146,12 @@ func (a *app) handleDeleteTask(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func createServer(config HttpServerConfig, router *chi.Mux) (*http.Server, chan struct{}) {
+func createServer(cfg config.HttpServer, router *chi.Mux) (*http.Server, chan struct{}) {
 	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", config.ListenAddress, config.Port),
+		Addr:         fmt.Sprintf("%s:%d", cfg.ListenAddress, cfg.Port),
 		Handler:      router,
-		ReadTimeout:  time.Duration(config.ReadTimeoutSeconds) * time.Second,
-		WriteTimeout: time.Duration(config.WriteTimeoutSeconds) * time.Second,
+		ReadTimeout:  time.Duration(cfg.ReadTimeoutSeconds) * time.Second,
+		WriteTimeout: time.Duration(cfg.WriteTimeoutSeconds) * time.Second,
 		ConnState: func(conn net.Conn, state http.ConnState) {
 			log.Printf("ConnState: %v, %v", conn.RemoteAddr(), state)
 		},
@@ -171,15 +172,18 @@ func createServer(config HttpServerConfig, router *chi.Mux) (*http.Server, chan 
 }
 
 func main() {
-	config, err := LoadConfig()
+	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
-	app := &app{
-		config:    config,
-		taskStore: taskstore.NewInMemTaskStore(),
+	store, err := taskstore.NewPgTaskStore(cfg.Postgres)
+	if err != nil {
+		log.Fatalf("error creating task store: %v", err)
 	}
-
+	app := &app{
+		config:    cfg,
+		taskStore: store,
+	}
 	router := chi.NewRouter()
 	router.Get("/ping", handlePing)
 	router.Post("/tasks", app.handleCreateTask)
@@ -190,7 +194,7 @@ func main() {
 	router.Get("/tasks/by-tag/{tag}", app.handleGetTasksByTag)
 	router.Get(`/tasks/by-due-date/{yyyy:\d{4}}-{mm:\d\d}-{dd:\d\d}`, app.handleGetTasksByDueDate)
 
-	server, idleConnsClosed := createServer(config.HttpServer, router)
+	server, idleConnsClosed := createServer(cfg.HttpServer, router)
 	log.Println("server started")
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
 		log.Printf("HTTP server ListenAndServe: %v", err)

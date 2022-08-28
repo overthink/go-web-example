@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"fmt"
@@ -6,14 +6,14 @@ import (
 	"github.com/spf13/viper"
 )
 
-type HttpServerConfig struct {
+type HttpServer struct {
 	Port                int    `mapstructure:"port"`
 	ListenAddress       string `mapstructure:"listen_address"`
 	ReadTimeoutSeconds  int    `mapstructure:"read_timeout_s"`
 	WriteTimeoutSeconds int    `mapstructure:"write_timeout_s"`
 }
 
-type PostgresConfig struct {
+type Postgres struct {
 	Host       string `mapstructure:"host"`
 	Port       int    `mapstructure:"port"`
 	DbName     string `mapstructure:"dbname"`
@@ -22,13 +22,13 @@ type PostgresConfig struct {
 	SSLEnabled bool   `mapstructure:"ssl_enabled"`
 }
 
-type Config struct {
-	HttpServer HttpServerConfig `mapstructure:"http_server"`
-	Postgres   PostgresConfig   `mapstructure:"postgres"`
+type App struct {
+	HttpServer HttpServer `mapstructure:"http_server"`
+	Postgres   Postgres   `mapstructure:"postgres"`
 }
 
-func LoadConfig() (Config, error) {
-	var config Config
+func Load() (App, error) {
+	var config App
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")

@@ -8,6 +8,7 @@ import (
 
 	"github.com/lib/pq"
 	_ "github.com/lib/pq"
+	"github.com/overthink/go-web-example/config"
 )
 
 // PgTaskStore implements task storage and retreival in a Postgres DB.
@@ -15,6 +16,30 @@ import (
 // SqlTaskStore might be a better name, but other dbs haven't been tested.
 type PgTaskStore struct {
 	Pool *sql.DB
+}
+
+func NewPgTaskStore(cfg config.Postgres) (*PgTaskStore, error) {
+	sslMode := "disable"
+	if cfg.SSLEnabled {
+		sslMode = "enable"
+	}
+	connStr := fmt.Sprintf(
+		"postgresql://%s:%s@%s:%d/%s?sslmode=%s",
+		cfg.UserName,
+		cfg.Password,
+		cfg.Host,
+		cfg.Port,
+		cfg.DbName,
+		sslMode,
+	)
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("error opening db: %v", err)
+	}
+	if err = db.Ping(); err != nil {
+		return nil, fmt.Errorf("error pinging db: %v", err)
+	}
+	return &PgTaskStore{Pool: db}, nil
 }
 
 func (ts *PgTaskStore) CreateTask(ctx context.Context, text string, tags []string, due time.Time) (int, error) {
